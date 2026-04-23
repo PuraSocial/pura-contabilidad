@@ -492,7 +492,12 @@
         </div>
         <div class="cards-grid">
           <div class="card">
-            <div class="card-label">Ingresos del mes</div>
+            <div class="card-label">Facturado neto s/IVA</div>
+            <div class="card-value" style="color:var(--text-2)" id="dash-neto">$0</div>
+            <div class="card-sub">base para sueldos</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Ingresos del mes c/IVA</div>
             <div class="card-value positive" id="dash-ingresos">$0</div>
             <div class="card-sub" id="dash-ingresos-n">0 facturas</div>
           </div>
@@ -554,13 +559,16 @@
           <table>
             <thead><tr>
               <th>Cliente</th>
-              <th>Monto</th>
+              <th>Servicio</th>
+              <th>Neto s/IVA</th>
+              <th>IVA 19%</th>
+              <th>Total c/IVA</th>
               <th>Fecha emisión</th>
               <th>Fecha pago</th>
               <th>Estado</th>
               <th></th>
             </tr></thead>
-            <tbody id="tbodyIngresos"><tr><td colspan="6"><div class="empty"><div class="empty-icon">↑</div><div class="empty-text">Sin registros aún</div></div></td></tr></tbody>
+            <tbody id="tbodyIngresos"><tr><td colspan="9"><div class="empty"><div class="empty-icon">↑</div><div class="empty-text">Sin registros aún</div></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -656,8 +664,12 @@
           <input type="text" id="ing-cliente" required placeholder="Nombre del cliente">
         </div>
         <div class="form-group">
-          <label>Monto (CLP) *</label>
-          <input type="number" id="ing-monto" required placeholder="0" min="0">
+          <label>Monto neto sin IVA (CLP) *</label>
+          <input type="number" id="ing-monto" required placeholder="0" min="0" oninput="calcIvaPreview()">
+        </div>
+        <div class="form-group">
+          <label>IVA 19% · Total con IVA</label>
+          <div id="ivaPreview" style="background:var(--accent-light);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--accent-text);font-family:DM Mono,monospace;min-height:38px;">—</div>
         </div>
         <div class="form-group">
           <label>Estado *</label>
@@ -673,6 +685,10 @@
         <div class="form-group">
           <label>Fecha pago</label>
           <input type="date" id="ing-fechaPago" placeholder="">
+        </div>
+        <div class="form-group full">
+          <label>Servicio prestado *</label>
+          <input type="text" id="ing-servicio" required placeholder="Ej: Diseño de marca, Consultoría, Campaña digital…">
         </div>
         <div class="form-group full">
           <label>Descripción / Nota</label>
@@ -698,7 +714,7 @@
           <input type="date" id="gas-fecha" required>
         </div>
         <div class="form-group">
-          <label>Monto (CLP) *</label>
+          <label>Monto neto sin IVA (CLP) *</label>
           <input type="number" id="gas-monto" required placeholder="0" min="0">
         </div>
         <div class="form-group">
@@ -742,7 +758,7 @@
           <input type="text" id="cta-proveedor" required placeholder="Nombre del proveedor">
         </div>
         <div class="form-group">
-          <label>Monto (CLP) *</label>
+          <label>Monto neto sin IVA (CLP) *</label>
           <input type="number" id="cta-monto" required placeholder="0" min="0">
         </div>
         <div class="form-group">
@@ -785,12 +801,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD1teCrXk_9WAStLfnY8J0qjMecayDZB1Q",
-  authDomain: "pura-contabilidad.firebaseapp.com",
-  projectId: "pura-contabilidad",
-  storageBucket: "pura-contabilidad.firebasestorage.app",
-  messagingSenderId: "532013858871",
-  appId: "1:532013858871:web:9815e7d9647303e4b6ffb2"
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_PROYECTO.firebaseapp.com",
+  projectId: "TU_PROJECT_ID",
+  storageBucket: "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
 };
 
 // ============================================================
@@ -889,12 +905,14 @@ window.renderDashboard = function() {
   const sel = document.getElementById('dashMonth').value;
   const ingMes = ingresosData.filter(r => (r.fechaEmision||'').startsWith(sel));
   const gasMes = gastosData.filter(r => (r.fecha||'').startsWith(sel));
-  const totalIng = ingMes.reduce((s,r) => s+(+r.monto||0), 0);
-  const totalGas = gasMes.reduce((s,r) => s+(+r.monto||0), 0);
-  const balance  = totalIng - totalGas;
-  const porCobrar = ingresosData.filter(r => r.estado==='por_cobrar').reduce((s,r) => s+(+r.monto||0), 0);
+  const totalNeto = ingMes.reduce((s,r) => s+(+r.monto||0), 0);
+  const totalIng  = Math.round(totalNeto * 1.19);
+  const totalGas  = gasMes.reduce((s,r) => s+(+r.monto||0), 0);
+  const balance   = totalIng - totalGas;
+  const porCobrar = ingresosData.filter(r => r.estado==='por_cobrar').reduce((s,r) => s+(Math.round((+r.monto||0)*1.19)), 0);
   const nPorCobrar = ingresosData.filter(r => r.estado==='por_cobrar').length;
 
+  document.getElementById('dash-neto').textContent = fmt(totalNeto);
   document.getElementById('dash-ingresos').textContent = fmt(totalIng);
   document.getElementById('dash-ingresos-n').textContent = ingMes.length + ' factura'+( ingMes.length!==1?'s':'');
   document.getElementById('dash-gastos').textContent = fmt(totalGas);
@@ -962,11 +980,14 @@ window.renderIngresos = function() {
   const filtro = document.getElementById('filtroEstadoIngreso').value;
   const data = filtro ? ingresosData.filter(r=>r.estado===filtro) : ingresosData;
   const tbody = document.getElementById('tbodyIngresos');
-  if(!data.length) { tbody.innerHTML = `<tr><td colspan="6">${emptyHTML('↑')}</td></tr>`; return; }
+  if(!data.length) { tbody.innerHTML = `<tr><td colspan="9">${emptyHTML('↑')}</td></tr>`; return; }
   tbody.innerHTML = data.map(r => `
     <tr>
       <td><span style="font-weight:500">${esc(r.cliente)}</span>${r.desc?`<br><span style="font-size:11px;color:var(--text-3)">${esc(r.desc)}</span>`:''}</td>
-      <td class="amount income">${fmt(r.monto)}</td>
+      <td style="font-size:13px;color:var(--text-2)">${esc(r.servicio||'—')}</td>
+      <td class="amount" style="color:var(--text-2)">${fmt(r.monto)}</td>
+      <td class="amount" style="color:var(--warn)">${fmt(Math.round(r.monto*0.19))}</td>
+      <td class="amount income">${fmt(Math.round(r.monto*1.19))}</td>
       <td style="font-size:12px;color:var(--text-2)">${fmtDate(r.fechaEmision)}</td>
       <td style="font-size:12px;color:var(--text-2)">${r.fechaPago ? fmtDate(r.fechaPago) : '<span style="color:var(--text-3)">—</span>'}</td>
       <td>${badgeEstadoIng(r.estado)}</td>
@@ -1014,10 +1035,20 @@ window.renderCuentas = function() {
 }
 
 // ---- SUBMIT FORMS ----
+window.calcIvaPreview = function() {
+  const v = +document.getElementById('ing-monto').value || 0;
+  const iva = Math.round(v * 0.19);
+  const total = Math.round(v * 1.19);
+  document.getElementById('ivaPreview').textContent = v > 0
+    ? 'IVA: $' + iva.toLocaleString('es-CL') + '  →  Total: $' + total.toLocaleString('es-CL')
+    : '—';
+}
+
 window.submitIngreso = async function(e) {
   e.preventDefault();
   const data = {
     cliente: document.getElementById('ing-cliente').value.trim(),
+    servicio: document.getElementById('ing-servicio').value.trim(),
     monto: +document.getElementById('ing-monto').value,
     estado: document.getElementById('ing-estado').value,
     fechaEmision: document.getElementById('ing-fechaEmision').value,
@@ -1126,6 +1157,8 @@ window.openModal = function(id) {
 }
 window.closeModal = function(id) {
   document.getElementById(id).classList.remove('open');
+  const prev = document.getElementById('ivaPreview');
+  if(prev) prev.textContent = '—';
 }
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); });
